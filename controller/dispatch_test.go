@@ -5,17 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bogdanovich/siberite/repository"
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_Dispatch(t *testing.T) {
-	repo, err := repository.Initialize(dir)
-	defer repo.CloseAllQueues()
-	assert.Nil(t, err)
-
-	mockTCPConn := NewMockTCPConn()
-	controller := NewSession(mockTCPConn, repo)
+func Test_Controller_Dispatch(t *testing.T) {
+	repo, controller, mockTCPConn := setupControllerTest(t, 0)
+	defer cleanupControllerTest(repo)
 
 	// Command: set test 0 0 1
 	// 1
@@ -147,4 +142,11 @@ func Test_Dispatch(t *testing.T) {
 	err = controller.Dispatch()
 	assert.Nil(t, err)
 	assert.Equal(t, "Flushed all queues.\r\n", mockTCPConn.WriteBuffer.String())
+
+	// Command: quit
+	fmt.Fprintf(&mockTCPConn.ReadBuffer, "quit\r\n")
+	err = controller.Dispatch()
+	assert.Error(t, err, "Quit command received")
+
+	mockTCPConn.WriteBuffer.Reset()
 }

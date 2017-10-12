@@ -7,15 +7,17 @@ import (
 	"net"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
 var dir = "./test_data"
-var hostAndPort = "127.0.0.1:22135"
+var hostAndPort = "127.0.0.1:22140"
 var err error
 
 func TestMain(m *testing.M) {
+	os.RemoveAll(dir)
 	os.Mkdir(dir, 0777)
 	result := m.Run()
 	os.RemoveAll(dir)
@@ -26,17 +28,13 @@ func Test_StartGetVersionAndStop(t *testing.T) {
 	s := New(dir)
 
 	laddr, err := net.ResolveTCPAddr("tcp", hostAndPort)
-	if nil != err {
+	if err != nil {
 		log.Fatalln(err)
 	}
-	listener, err := net.ListenTCP("tcp", laddr)
-	if nil != err {
-		log.Fatalln(err)
-	}
-	log.Println("listening on", listener.Addr())
 
-	go s.Serve(listener)
+	go s.Serve(laddr)
 	defer s.Stop()
+	time.Sleep(1 * time.Second)
 
 	conn, err := net.Dial("tcp", hostAndPort)
 	assert.Nil(t, err)

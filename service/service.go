@@ -31,16 +31,22 @@ func New(dataDir string) *Service {
 }
 
 // Serve starts the service
-func (s *Service) Serve(listener *net.TCPListener) {
+func (s *Service) Serve(laddr *net.TCPAddr) {
 	defer s.wg.Done()
 
 	log.Println("initializing...")
 	var err error
-	s.repo, err = repository.Initialize(s.dataDir)
+	s.repo, err = repository.NewRepository(s.dataDir)
 	log.Println("data directory: ", s.dataDir)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	listener, err := net.ListenTCP("tcp", laddr)
+	if nil != err {
+		log.Fatalln(err)
+	}
+	log.Println("listening on", listener.Addr())
 
 	for {
 		select {
@@ -52,7 +58,7 @@ func (s *Service) Serve(listener *net.TCPListener) {
 		}
 		listener.SetDeadline(time.Now().Add(1e9))
 		conn, err := listener.AcceptTCP()
-		if nil != err {
+		if err != nil {
 			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
 				continue
 			}
@@ -74,24 +80,25 @@ func (s *Service) handleConnection(conn *net.TCPConn) {
 	defer conn.Close()
 	defer s.wg.Done()
 
-	controller := controller.NewSession(conn, s.repo)
-	defer controller.FinishSession()
+	c := controller.NewSession(conn, s.repo)
+	defer c.FinishSession()
 
 	for {
 		select {
 		case <-s.ch:
-			log.Println("Disconnecting", conn.RemoteAddr())
+			log.Println("disconnecting", conn.RemoteAddr())
 			return
 		default:
 		}
-		err := controller.Dispatch()
+		err := c.Dispatch()
 		if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
 			continue
 		}
 		if err != nil {
-			if err.Error() != "EOF" {
-				log.Println(conn.RemoteAddr(), err)
+			if err == controller.ErrClientQuit || err.Error() == "EOF" {
+				return
 			}
+			log.Println(conn.RemoteAddr(), err)
 			return
 		}
 	}

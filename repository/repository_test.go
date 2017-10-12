@@ -5,15 +5,17 @@ import (
 	"os"
 	"testing"
 
-	"github.com/bogdanovich/siberite/queue"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/bogdanovich/siberite/cgroup"
 )
 
 var dir = "./test_data"
 var name = "test"
 
 func TestMain(m *testing.M) {
-	err = os.MkdirAll(dir, 0777)
+	os.RemoveAll(dir)
+	err := os.MkdirAll(dir, 0777)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -22,13 +24,13 @@ func TestMain(m *testing.M) {
 	os.Exit(result)
 }
 
-func Test_Initialize(t *testing.T) {
-	repo, err := Initialize(dir)
+func Test_NewRepository(t *testing.T) {
+	repo, err := NewRepository(dir)
 	assert.Nil(t, err)
 
 	// Create 3 queues and push some data
 	queueNames := []string{"test1", "test2", "test3"}
-	var q *queue.Queue
+	var q *cgroup.CGQueue
 	totalItems := 3
 	for i := 0; i < len(queueNames); i++ {
 		q, _ = repo.GetQueue(queueNames[i])
@@ -36,30 +38,30 @@ func Test_Initialize(t *testing.T) {
 			q.Enqueue([]byte("value"))
 		}
 		// Get one element out
-		_, _ = q.Dequeue()
+		_, _ = q.GetNext()
 	}
 
 	// Close all queues and destroy repo
 	repo.CloseAllQueues()
 	repo = nil
 
-	// Initialize repo again and check loaded queues
-	repo, err = Initialize(dir)
+	// NewRepository repo again and check loaded queues
+	repo, err = NewRepository(dir)
 	assert.Nil(t, err)
 
 	assert.Equal(t, 3, repo.Count(), "Invalid repo count after initialization")
 
 	for i := 0; i < len(queueNames); i++ {
 		q, _ = repo.GetQueue(queueNames[i])
-		assert.Equal(t, uint64(1), q.Head(), "Invalid queue initialization")
-		assert.Equal(t, uint64(totalItems), q.Tail(), "Invalid queue initialization")
-		assert.Equal(t, uint64(totalItems-1), q.Length(), "Invalid queue initialization")
+		assert.EqualValues(t, 1, q.Head(), "Invalid queue initialization")
+		assert.EqualValues(t, totalItems, q.Tail(), "Invalid queue initialization")
+		assert.EqualValues(t, totalItems-1, q.Length(), "Invalid queue initialization")
 	}
 	repo.DeleteAllQueues()
 }
 
 func Test_DeleteQueue(t *testing.T) {
-	repo, err := Initialize(dir)
+	repo, err := NewRepository(dir)
 	defer repo.DeleteAllQueues()
 
 	assert.Nil(t, err)
@@ -78,16 +80,14 @@ func Test_DeleteQueue(t *testing.T) {
 }
 
 func Test_FullStats(t *testing.T) {
-	repo, _ := Initialize(dir)
+	repo, _ := NewRepository(dir)
 	defer repo.DeleteAllQueues()
 
 	repo.GetQueue("test1")
-	repo.GetQueue("test2")
 
 	statItemKeys := []string{
 		"uptime", "time", "version", "curr_connections", "total_connections",
-		"cmd_get", "cmd_set", "queue_test2_items", "queue_test2_open_transactions",
-		"queue_test1_items", "queue_test1_open_transactions",
+		"cmd_get", "cmd_set", "queue_test1_items", "queue_test1_open_transactions",
 	}
 
 	for i, statItem := range repo.FullStats() {
@@ -96,32 +96,36 @@ func Test_FullStats(t *testing.T) {
 }
 
 func Test_GetQueue(t *testing.T) {
-	repo, _ := Initialize(dir)
+	repo, _ := NewRepository(dir)
 	defer repo.DeleteAllQueues()
 
 	_, err := repo.GetQueue("test1")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 1, repo.Count())
 
 	_, err = repo.GetQueue("test1")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 1, repo.Count())
 
 	_, err = repo.GetQueue("test2")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 2, repo.Count())
 
-	_, err = repo.GetQueue("test:test")
-	assert.Equal(t, "Queue name is not alphanumeric", err.Error())
-	assert.Equal(t, 2, repo.Count())
+	_, err = repo.GetQueue("test2:test2")
+	assert.NoError(t, err)
+	assert.Equal(t, 3, repo.Count())
+
+	_, err = repo.GetQueue("test.test")
+	assert.EqualError(t, err, "queue: name is not alphanumeric")
+	assert.Equal(t, 3, repo.Count())
 
 	_, err = repo.GetQueue("testtest!@#$%^&*-=")
-	assert.Equal(t, "Queue name is not alphanumeric", err.Error())
-	assert.Equal(t, 2, repo.Count())
+	assert.Equal(t, "queue: name is not alphanumeric", err.Error())
+	assert.Equal(t, 3, repo.Count())
 }
 
 func Test_Count(t *testing.T) {
-	repo, _ := Initialize(dir)
+	repo, _ := NewRepository(dir)
 	defer repo.DeleteAllQueues()
 
 	repo.GetQueue("test1")

@@ -7,7 +7,6 @@ import (
 
 // Dispatch routes client commands to their respective handlers
 func (c *Controller) Dispatch() error {
-	var err error
 	c.conn.SetDeadline(time.Now().Add(3e9))
 	message, err := c.ReadFirstMessage()
 	if err != nil {
@@ -33,12 +32,14 @@ func (c *Controller) Dispatch() error {
 		err = c.Flush(command)
 	case "flush_all":
 		err = c.FlushAll()
+	case "quit":
+		return ErrClientQuit
 	default:
 		return c.UnknownCommand()
 	}
 
 	if err != nil {
-		c.SendError(err.Error())
+		c.SendError(err)
 		return err
 	}
 	return nil

@@ -1,3 +1,38 @@
+## 0.6.4 (unreleased)
+- Added PID file support (thanks to @jeteon)
+
+## 0.6.3
+- Added support for 'quit' command (memcached protocol compatibility)
+
+## 0.6.2
+- Limit OpenFilesCacheCapacity to 64 per queue
+
+## 0.6.0
+- Change durable cursor separator from `:` to `.` for Kestrel compatibility.<br>
+  Kestrel uses `:` as a namespace separator.
+- Allow `:` character in queue name
+
+## 0.5.2
+- Accept connections only after queues are fully initialized
+
+## 0.5.1
+
+- Fanout queues support.<br>
+  `set <queue>+<another_queue>+<third_queue> ...` adds an item to multiple queues.
+
+## 0.5
+
+- Add durable cursors. An ability to consume queue multiple times
+  using `get <queue>:<cursor>` syntax
+
+- New directory structure is backwards incompatible with  v0.4.x.
+  But you can manually move each existing `data/<queue>` directory to
+  `data/<queue>/<queue>` and new siberite will pick up the data.
+
+## 0.4.2
+
+- Enable leveldb BlockCacher (improves performance)
+
 ## 0.4.1
 
 - Fix repository.GetQueue returns error without lock release
